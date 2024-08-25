@@ -7,38 +7,42 @@ pipeline {
         IMAGE_TAG = "latest"
         CLUSTER = 'hello-world-cluster'
         SERVICE = 'hello-world-service'
-        AWS_ACCOUNT_ID = 'your-account-id'  // Replace with your AWS Account ID
+        AWS_ACCOUNT_ID = '904529597796'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                git 'https://github.com/your-repo/hello-world.git'  // Replace with your repository URL
+                git 'https://github.com/noreshbatchu/autodesk-assignment.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    dockerImage = docker.build("${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}")
+                    dir('app/src/hello-world') {
+                        dockerImage = docker.build("${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}")
+                    }
                 }
             }
         }
 
         stage('Push to ECR') {
             steps {
-                script {
-                    sh """
-                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                    dockerImage.push()
-                    """
+                withAWS(region: "${AWS_REGION}", credentials: 'aws-credentials') {
+                    script {
+                        sh '''
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                        docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+                        '''
+                    }
                 }
             }
         }
 
         stage('Deploy to ECS') {
             steps {
-                script {
+                withAWS(region: "${AWS_REGION}", credentials: 'aws-credentials') {
                     sh """
                     aws ecs update-service --cluster ${CLUSTER} --service ${SERVICE} --force-new-deployment
                     """
